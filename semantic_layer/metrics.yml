@@ -1,0 +1,75 @@
+dimensions:
+  state:
+    description: Customer state (BR abbrev)
+    column: state
+  category:
+    description: Product category (English)
+    column: category
+  payment_type:
+    description: credit_card, boleto, voucher, debit_card
+    column: payment_type
+
+metrics:
+  gross_revenue:
+    description: Sum of item price across non-canceled orders
+    sql: |
+      SELECT date, SUM(item_price) AS value
+      FROM daily_facts
+      WHERE order_status IN ('delivered','shipped','invoiced','processing')
+        {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, category, payment_type]
+    expected_direction: up
+    unit: BRL
+
+  order_count:
+    description: Distinct orders per day
+    sql: |
+      SELECT date, COUNT(DISTINCT order_id) AS value
+      FROM daily_facts
+      WHERE 1=1 {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, category, payment_type]
+    expected_direction: up
+
+  avg_order_value:
+    description: Average item price
+    sql: |
+      SELECT date, AVG(item_price) AS value
+      FROM daily_facts
+      WHERE order_status='delivered' {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, category, payment_type]
+    expected_direction: up
+
+  late_delivery_rate:
+    description: Fraction of delivered orders arriving after estimated date
+    sql: |
+      SELECT date, AVG(is_late::DOUBLE) AS value
+      FROM daily_facts
+      WHERE order_status='delivered' {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, category]
+    expected_direction: down
+
+  avg_review_score:
+    description: Average 1-5 review score
+    sql: |
+      SELECT date, AVG(review_score) AS value
+      FROM daily_facts
+      WHERE review_score IS NOT NULL {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, category]
+    expected_direction: up
+
+  payment_failure_rate:
+    description: Fraction of orders in canceled/unavailable state
+    sql: |
+      SELECT date,
+             AVG(CASE WHEN order_status IN ('canceled','unavailable')
+                      THEN 1 ELSE 0 END::DOUBLE) AS value
+      FROM daily_facts
+      WHERE 1=1 {where}
+      GROUP BY date ORDER BY date
+    allowed_dimensions: [state, payment_type]
+    expected_direction: down
